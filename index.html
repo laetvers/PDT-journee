@@ -1,29 +1,67 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Générateur de plans</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script><script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<style>*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#20242a;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:1100px;margin:auto;padding:24px}h1{margin:0 0 6px;font-size:28px}.muted{color:#667085}.card{background:#fff;border:1px solid #dfe3e8;border-radius:14px;padding:18px;margin:14px 0}textarea{width:100%;min-height:310px;padding:14px;border:1px solid #cbd2d9;border-radius:10px;font:14px/1.5 ui-monospace,monospace}button{border:0;border-radius:9px;padding:10px 14px;background:#20242a;color:#fff;cursor:pointer;font-weight:600;margin:5px 5px 5px 0}button.secondary{background:#e9edf1;color:#20242a}button:disabled{opacity:.45}.item{border:1px solid #e1e5e9;border-radius:10px;padding:10px;margin:8px 0;background:#fafbfc}.tag{display:inline-block;border-radius:999px;padding:3px 8px;background:#e9edf1;font-size:12px;margin-right:6px}.ok{color:#087443}.err{color:#b42318}.preview{background:#fff;padding:28px;max-width:800px;margin:auto}.preview h2{font-size:20px;border-bottom:1px solid #ddd;padding-bottom:5px}@media(max-width:650px){.wrap{padding:12px}button{width:100%;margin-right:0}.card{padding:13px}}</style></head>
-<body><div class="wrap"><h1>Générateur de plans</h1><div class="muted">V1 — colle le plan de journée, puis génère les documents.</div>
-<div class="card"><h2>1. Plan de journée</h2><textarea id="plan" placeholder="Colle ici ton plan de journée…"></textarea><br><button onclick="analyzePlan()">Analyser le plan</button><button class="secondary" onclick="reset()">Effacer</button><div id="analysis"></div></div>
-<div class="card" id="actions" hidden><h2>2. Documents</h2><div id="status" class="muted"></div><button id="teacher" onclick="exportTeacher()" disabled>PDF enseignant</button><button id="student" onclick="exportStudents()" disabled>PDF élèves</button><button id="ppt" onclick="exportPpt()" disabled>PowerPoint projection</button><div class="muted">Les évaluations et corrections sont exclues du PDF élèves.</div></div>
-<div class="card" id="previewCard" hidden><h2>Aperçu</h2><div id="preview" class="preview"></div></div></div>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Générateur de plans</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#20242a;font-family:system-ui,sans-serif}.wrap{max-width:1000px;margin:auto;padding:18px}.card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:18px;margin:12px 0}textarea{width:100%;min-height:360px;border:1px solid #bbb;border-radius:10px;padding:12px;font:14px monospace}button{border:0;border-radius:10px;padding:11px 15px;margin:8px 6px 0 0;font-weight:700;cursor:pointer}.primary{background:#20242a;color:#fff}.secondary{background:#e8eaed}.muted{color:#6b7280}.pill{display:inline-block;padding:4px 8px;border-radius:99px;background:#eef0f4;margin:3px;font-size:.8rem}.error{color:#a61b1b}.ok{color:#176b35}#pages{display:none}.document{width:210mm;max-width:100%;margin:12px auto}.document-title{background:#fff;padding:14mm 14mm 8mm;margin:0;border-bottom:2px solid #222}.document-section{background:#fff;width:210mm;max-width:100%;padding:8mm 14mm 14mm;margin:0 auto 12px}.document-section.section-break{break-before:page;page-break-before:always}.document-section h2{margin-top:8px;margin-bottom:12px;border-bottom:1px solid #aaa;padding-bottom:4px}.document-section h3,.document-section h4{break-after:avoid}.document-section p,.document-section li{font-size:10.5pt;line-height:1.45}.document-section ul,.document-section ol{padding-left:22px}.document-section table{border-collapse:collapse;width:100%;margin:10px 0;font-size:10pt}.document-section td,.document-section th{border:1px solid #999;padding:5px;vertical-align:top}.document-section blockquote{border-left:4px solid #aaa;margin:12px 0;padding:4px 12px;color:#555}@media(max-width:700px){.wrap{padding:10px}.document{width:auto}.document-title,.document-section{width:auto;padding:18px}}@media print{@page{size:A4;margin:0}body{background:#fff}.wrap{display:none!important}#pages{display:block!important}.document{width:210mm;max-width:none;margin:0}.document-title{width:210mm;max-width:none;padding:14mm 14mm 8mm}.document-section{width:210mm;max-width:none;padding:8mm 14mm 14mm;margin:0}.document-section.section-break{break-before:page;page-break-before:always}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card"><h1>📚 Générateur de plans de travail</h1><p class="muted">Source des compétences : dépôt public Sephi-Chan/progression. Les évaluations et devoirs ne sont pas générés dans cette version.</p><textarea id="plan" placeholder="Colle ici ton plan de journée…"></textarea><br><button class="primary" onclick="generate()">Générer les documents</button><button class="secondary" onclick="window.print()">Imprimer / enregistrer en PDF</button></div>
+<div class="card"><strong>Codes détectés</strong><div id="detected" class="muted">—</div></div><div class="card"><div id="status">Prêt.</div></div>
+</div><div id="pages"></div>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script>
-const API='https://api.github.com/repos/Sephi-Chan/progression/git/trees/main?recursive=1',RAW='https://raw.githubusercontent.com/Sephi-Chan/progression/main/';let tree,selected={lesson:[],modelage:[],training:[],task:[]},docs={};
-const clean=s=>s.replace(/\r/g,'').replace(/\u00a0/g,' ').trim();
-function reset(){document.getElementById('plan').value='';document.getElementById('analysis').innerHTML='';document.getElementById('actions').hidden=true;document.getElementById('previewCard').hidden=true;selected={lesson:[],modelage:[],training:[],task:[]};docs={}}
-function preprocess(t){return clean(t).replace(/\*\*(Le|Mo|En|TC|Év|Ev)(?=[A-ZÉÀ])/g,'**$1\n').replace(/\*\*(Leçon|Modelage|Entraînement|Tâche complexe|Évaluation)(?=[A-ZÉÀ])/g,'**$1\n').replace(/(^|[\n ])(Le|Mo|En|TC|Év|Ev)(?=[A-Z]{2,6}\d+\s*[–-])/g,'$1$2\n')}
-function analyzePlan(){const t=preprocess(document.getElementById('plan').value);if(!t){reset();return}selected={lesson:[],modelage:[],training:[],task:[]};let sec='';for(const raw of t.split('\n')){const line=clean(raw),low=line.toLowerCase();if(!line)continue;if(/(?:^|\*)\s*(leçon|le)\b/.test(low))sec='lesson';else if(/(?:^|\*)\s*(modelage|mo)\b/.test(low))sec='modelage';else if(/(?:^|\*)\s*(entraînement|en)\b/.test(low))sec='training';else if(/(?:^|\*)\s*(tâche complexe|tc)\b/.test(low))sec='task';else if(/(?:^|\*)\s*(évaluation|év|ev)\b/.test(low))sec='ignore';const m=line.match(/\b([A-Z]{2,6}\d{1,3})\b\s*[–-]\s*(.+?)(?:\s*[—-]\s*\d+(?:er|e|ème)?\s+entraînement.*)?$/i);if(!m)continue;const x={code:m[1].toUpperCase(),title:m[2].trim()};if(sec==='lesson')selected.lesson.push(x);else if(sec==='modelage')selected.modelage.push(x);else if(sec==='training'){const n=line.match(/(\d+)(?:er|e|ème)?\s+entraînement/i);selected.training.push({...x,n:n?+n[1]:null})}else if(sec==='task')selected.task.push(x)}renderAnalysis();loadDocuments()}
-function renderAnalysis(){let h='';for(const [name,key] of [['Leçons','lesson'],['Modelages','modelage'],['Entraînements','training'],['Tâches complexes','task']]){h+=`<h3>${name}</h3>`;if(!selected[key].length)h+='<div class="muted">Aucun élément détecté.</div>';for(const x of selected[key])h+=`<div class="item"><span class="tag">${x.code}</span>${x.n?`<span class="tag">n°${x.n}</span>`:''}${x.title}</div>`}document.getElementById('analysis').innerHTML=h;document.getElementById('actions').hidden=false;document.getElementById('status').textContent='Recherche des fichiers…'}
-async function getTree(){if(tree)return tree;const r=await fetch(API);if(!r.ok)throw Error('Impossible de lire l’arborescence GitHub ('+r.status+').');tree=(await r.json()).tree||[];return tree}
-async function fetchCode(code){const t=await getTree(),c=t.filter(x=>x.type==='blob'&&x.path.toLowerCase().endsWith('/'+code.toLowerCase()+'.md'));if(!c.length)throw Error(`Fichier ${code}.md introuvable.`);const r=await fetch(RAW+c[0].path);if(!r.ok)throw Error(`Lecture de ${code}.md impossible.`);return {code,text:await r.text()}}
-function sec(text,heading){const m=text.match(heading);if(!m)return null;const rest=text.slice(m.index+m[0].length),n=/^##\s+/m.exec(rest);return clean(rest.slice(0,n?n.index:rest.length))}
-function training(text,n){const m=text.match(new RegExp('^###\\s+Entraînement\\s+'+n+'\\s*$','mi'));if(!m)return null;const rest=text.slice(m.index+m[0].length),a=/^###\s+/m.exec(rest),b=/^##\s+/m.exec(rest);let end=rest.length;if(a)end=Math.min(end,a.index);if(b)end=Math.min(end,b.index);return clean(rest.slice(0,end))}
-function task(text){const m=text.match(/^##\s+(Tâche complexe|Situation complexe).*$/mi);if(!m)return null;const rest=text.slice(m.index+m[0].length),n=/^##\s+/m.exec(rest);return clean(rest.slice(0,n?n.index:rest.length))}
-function title(text,code){const m=text.match(/^intitule:\s*["']?(.+?)["']?\s*$/mi);return m?m[1].replace(/^['"]|['"]$/g,''):code}
-async function loadDocuments(){try{const codes=[...new Set([...selected.lesson,...selected.modelage,...selected.training,...selected.task].map(x=>x.code))];for(const c of codes)docs[c]=await fetchCode(c);document.getElementById('status').innerHTML='<span class="ok">Fichiers trouvés.</span>';['teacher','student','ppt'].forEach(id=>document.getElementById(id).disabled=false);document.getElementById('preview').innerHTML=marked.parse(teacherMd());document.getElementById('previewCard').hidden=false}catch(e){document.getElementById('status').innerHTML='<span class="err">'+e.message+'</span>'}}
-function teacherMd(){let o='# Fiche du jour — Enseignant\n\n';for(const x of selected.lesson){const d=docs[x.code];o+=`## ${x.code} — ${title(d.text,x.code)}\n\n${sec(d.text,/^##\s+Leçon explicite.*$/mi)||'_Section introuvable._'}\n\n`}for(const x of selected.modelage){const d=docs[x.code];o+=`## ${x.code} — ${title(d.text,x.code)}\n\n${sec(d.text,/^##\s+Modelage explicite.*$/mi)||'_Section introuvable._'}\n\n`}return o}
-function studentMd(){let o='# Fiche élèves — Entraînements\n\n';for(const x of selected.training){const d=docs[x.code];const block=x.n?training(d.text,x.n):null;o+=`## ${x.code} — Entraînement ${x.n||''}\n\n`;o+=block||'> ⚠️ L’entraînement demandé n’a pas été trouvé dans le fichier source.';o+='\n\n'}for(const x of selected.task){const d=docs[x.code];o+=`## ${x.code} — Tâche complexe\n\n`;o+=task(d.text)||'> ⚠️ Aucune section « Tâche complexe » dédiée n’existe dans ce fichier. Aucun contenu n’est substitué automatiquement.';o+='\n\n'}return o}
-async function pdf(md,name){if(typeof html2pdf==='undefined')throw Error('Le module PDF n’est pas chargé. Vérifie la connexion Internet puis recharge la page.');if(!md||md.trim().length<30)throw Error('Aucun contenu élève n’a été extrait.');const box=document.createElement('div');box.className='preview';box.style.width='190mm';box.style.background='#fff';box.innerHTML=marked.parse(md);document.body.appendChild(box);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));try{await html2pdf().set({margin:[10,10,12,10],filename:name+'.pdf',image:{type:'jpeg',quality:.96},html2canvas:{scale:2,useCORS:true,backgroundColor:'#fff'},pagebreak:{mode:['css','legacy']},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(box).save()}finally{box.remove()}}
-async function exportTeacher(){try{await pdf(teacherMd(),'fiche-enseignant')}catch(e){showExportError(e)}}
-async function exportStudents(){try{const md=studentMd();document.getElementById('preview').innerHTML=marked.parse(md);document.getElementById('previewCard').hidden=false;await pdf(md,'fiche-eleves')}catch(e){showExportError(e)}}
-function showExportError(e){document.getElementById('status').innerHTML='<span class="err">Erreur d’export : '+String(e.message||e).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))+'</span>'}
-async function exportPpt(){try{const Ctor=window.pptxgen||window.PptxGenJS;if(!Ctor)throw Error('Le module PowerPoint n’est pas chargé. Recharge la page avec Internet.');const pptx=new Ctor();pptx.layout='LAYOUT_WIDE';pptx.author='Générateur de plans';pptx.title='Projection exercices';const md=studentMd();const sections=md.split(/^##\s+/mi).slice(1).map(x=>x.trim()).filter(Boolean);if(!sections.length)throw Error('Aucun exercice élève à projeter.');sections.forEach((section,i)=>{const slide=pptx.addSlide();slide.background={color:'FFFFFF'};const lines=section.split('\n');const titleLine=lines.shift()||'';const body=lines.join('\n').trim();slide.addText(titleLine,{x:.55,y:.35,w:12.25,h:.55,fontSize:24,bold:true,color:'20242A',margin:0,fit:'shrink'});slide.addText(body,{x:.65,y:1.05,w:12.0,h:5.9,fontSize:20,color:'20242A',margin:.05,breakLine:false,fit:'shrink',valign:'top'});slide.addText(String(i+1),{x:12.45,y:7.0,w:.35,h:.2,fontSize:9,color:'777777',margin:0});});await pptx.writeFile({fileName:'projection-exercices.pptx'});}catch(e){showExportError(e)}}
-</script></body></html>
+const TREE_API='https://api.github.com/repos/Sephi-Chan/progression/git/trees/main?recursive=1';
+const RAW_BASE='https://raw.githubusercontent.com/Sephi-Chan/progression/main/';
+let pathsByCode={};
+function msg(t,c=''){const e=document.getElementById('status');e.textContent=t;e.className=c}
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function parsePlan(text){
+ const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean),out=[];let kind=null;
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i];
+  if(/^Le$/i.test(line)){kind='lesson';continue}if(/^Mo$/i.test(line)){kind='model';continue}if(/^En$/i.test(line)){kind='training';continue}if(/^TC$/i.test(line)){kind='tc';continue}if(/^Év$|^Ev$/i.test(line)){kind='eval';continue}if(/^Devoir$/i.test(line)){kind='homework';continue}
+  const m=line.match(/^([A-Z]{2,8}\d+)(?:\s*[–-]\s*(.*))?$/);if(!m)continue;
+  let title=(m[2]||'').trim();
+  if(!title&&lines[i+1]&&!/^(Le|Mo|En|TC|Év|Ev|Devoir)$/i.test(lines[i+1])&&!/^[A-Z]{2,8}\d+(?:\s*[–-]|$)/.test(lines[i+1]))title=lines[i+1];
+  let series=null;for(let j=i+1;j<Math.min(lines.length,i+5);j++){const sm=lines[j].match(/(?:^|\s)(\d+)\s*\/\s*\d+(?:\s|$)/);if(sm){series=Number(sm[1]);break}}
+  out.push({code:m[1].toUpperCase(),title:title||m[1].toUpperCase(),kind,series});
+ }return out;
+}
+async function loadTree(){
+ msg('Recherche des compétences dans GitHub…');
+ const r=await fetch(TREE_API,{headers:{'Accept':'application/vnd.github+json'}});if(!r.ok)throw Error('GitHub ne répond pas correctement ('+r.status+').');
+ const d=await r.json();if(d.truncated)throw Error('GitHub a tronqué la liste des fichiers.');
+ pathsByCode={};for(const x of(d.tree||[])){if(x.type!=='blob'||!/\.md$/i.test(x.path)||!x.path.startsWith('competences/'))continue;const c=x.path.split('/').pop().replace(/\.md$/i,'').toUpperCase();if(/^[A-Z]{2,8}\d+$/.test(c)&&!pathsByCode[c])pathsByCode[c]=x.path}
+ if(!Object.keys(pathsByCode).length)throw Error('Aucun fichier .md trouvé dans competences/.');
+}
+async function getMd(c){const p=pathsByCode[c];if(!p)throw Error('Compétence '+c+' introuvable dans competences/.');const r=await fetch(RAW_BASE+p);if(!r.ok)throw Error('Impossible de lire '+c+'.md ('+r.status+').');return r.text()}
+function extract(t,startRe,nextRe){if(!t)return '';const a=t.split(/\r?\n/),s=a.findIndex(x=>startRe.test(x));if(s<0)return '';let e=a.length;for(let i=s+1;i<a.length;i++){if(nextRe.test(a[i])){e=i;break}}return a.slice(s,e).join('\n').trim()}
+function lesson(t){return extract(t,/^#{1,6}\s+Leçon explicite\b/i,/^#{1,6}\s+/)}
+function model(t){return extract(t,/^#{1,6}\s+Modelage explicite\b/i,/^#{1,6}\s+/)}
+function tc(t){return extract(t,/^#{1,6}\s+À toi de jouer\b/i,/^#{1,6}\s+/)}
+function training(t,n){return n?extract(t,new RegExp('^#{1,6}\\s*Entra[iî]nement\\s*0?'+n+'\\b','i'),/^#{1,6}\s+/):''}
+function support(t){const a=t.split(/\r?\n/),s=a.findIndex(x=>/^#{1,6}\s*Support commun\b/i.test(x));if(s<0)return '';let e=a.length;for(let i=s+1;i<a.length;i++)if(/^#{1,6}\s*(Modelage explicite|À toi de jouer|Entra[iî]nements?)\b/i.test(a[i])){e=i;break}return a.slice(s,e).join('\n').trim()}
+function sectionFor(t,x){if(x.kind==='lesson')return lesson(t);if(x.kind==='model')return model(t);if(x.kind==='training')return training(t,x.series);if(x.kind==='tc')return tc(t);return ''}
+function renderDoc(title,items){return `<div class="document"><h1 class="document-title">${esc(title)}</h1>`+items.map((x,i)=>`<article class="document-section ${i?'section-break':''}"><h2>${esc(x.code)} — ${esc(x.title)}</h2>${marked.parse(x.html||'<p>Section non trouvée dans le fichier source.</p>')}</article>`).join('')+'</div>'}
+async function generate(){
+ try{
+  const pages=document.getElementById('pages');pages.style.display='none';pages.innerHTML='';
+  const plan=document.getElementById('plan').value;if(!plan.trim())throw Error('Colle d’abord ton plan de journée.');
+  const items=parsePlan(plan).filter(x=>x.kind!=='eval'&&x.kind!=='homework');if(!items.length)throw Error('Aucun code détecté. Utilise les sections Le, Mo, En ou TC puis les codes COMP2, GM1, etc.');
+  document.getElementById('detected').innerHTML=items.map(x=>`<span class="pill">${esc(x.code+(x.series?' · '+x.kind+' '+x.series:' · '+(x.kind||'compétence')))}</span>`).join('');
+  await loadTree();msg('Chargement des fichiers Markdown…');
+  const pairs=await Promise.all([...new Set(items.map(x=>x.code))].map(async c=>[c,await getMd(c)])),md=Object.fromEntries(pairs),teacher=[],student=[];
+  for(const x of items){const t=md[x.code]||'';if(x.kind==='lesson'||x.kind==='model'){const h=sectionFor(t,x);if(h)teacher.push({...x,html:h})}
+   if(x.kind==='training'||x.kind==='tc'){let h=sectionFor(t,x);if(x.kind==='training'&&!h)h=tc(t);const s=support(t);if(s)h=s+(h?'\n\n'+h:'');if(h)student.push({...x,html:h})}}
+  if(!teacher.length&&!student.length)throw Error('Les fichiers ont été trouvés, mais aucune section ne correspond aux éléments du plan.');
+  pages.innerHTML=(teacher.length?renderDoc('Plan de journée — Enseignant',teacher):'')+(student.length?renderDoc('Plan de journée — Élèves',student):'');pages.style.display='block';
+  msg('Documents prêts. Utilise « Imprimer / enregistrer en PDF ».','ok');pages.scrollIntoView({behavior:'smooth'});
+ }catch(e){console.error(e);msg('Erreur : '+e.message,'error')}
+}
+</script>
+</body></html>
